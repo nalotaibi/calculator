@@ -613,6 +613,10 @@ function lectureWord(n){
       'عملي': ceilLimit(totalByType['عملي'])
     };
 
+    // التعديل هنا: سقف العرض هو الحد ناقص 1
+    const displayLimitT = limitByType['نظري'] - 1;
+    const displayLimitP = limitByType['عملي'] - 1;
+
     const absentByType = { 'نظري': 0, 'عملي': 0 };
     cleanMeetings.forEach(m => { absentByType[m.type] += m.absent; });
 
@@ -638,13 +642,16 @@ function lectureWord(n){
       advice = `<div class="advice-box" style="color:#dc2626; font-weight:900;">تجاوزتِ الحد المسموح.</div>`;
     } else {
       let lines = [];
-      const buildLine = (type) => {
-        const remaining = (limitByType[type] - 1) - absentByType[type];
-        let remainColor = remaining <= 0 ? '#fb923c' : (remaining === 1 ? '#facc15' : '#16a34a');
-        return `<div style="margin-bottom:6px; line-height:1.8; font-weight:700;"><b style="color:var(--primary); font-weight:900;">ال${type}:</b> غيابك <span class="primary-num">${absentByType[type]}</span> من <span class="primary-num">${limitByType[type]}</span> — <span style="color:${remainColor}; font-weight:900;">يتبقى لك <span class="primary-num">${remaining}</span> ${lectureWord(remaining)}</span></div>`;
-      };
-      if (hasTheory) lines.push(buildLine('نظري'));
-      if (hasPrac) lines.push(buildLine('عملي'));
+      if (hasTheory) {
+        let remainingT = displayLimitT - absentByType['نظري'];
+        let colorT = remainingT <= 0 ? '#fb923c' : (remainingT === 1 ? '#facc15' : '#16a34a');
+        lines.push(`<div style="margin-bottom:6px; line-height:1.8; font-weight:700;"><b style="color:var(--primary); font-weight:900;">النظري:</b> غيابك <span class="primary-num">${absentByType['نظري']}</span> من <span class="primary-num">${displayLimitT}</span> — <span style="color:${colorT}; font-weight:900;">يتبقى لك <span class="primary-num">${remainingT}</span> ${lectureWord(remainingT)}</span></div>`);
+      }
+      if (hasPrac) {
+        let remainingP = displayLimitP - absentByType['عملي'];
+        let colorP = remainingP <= 0 ? '#fb923c' : (remainingP === 1 ? '#facc15' : '#16a34a');
+        lines.push(`<div style="margin-bottom:6px; line-height:1.8; font-weight:700;"><b style="color:var(--primary); font-weight:900;">العملي:</b> غيابك <span class="primary-num">${absentByType['عملي']}</span> من <span class="primary-num">${displayLimitP}</span> — <span style="color:${colorP}; font-weight:900;">يتبقى لك <span class="primary-num">${remainingP}</span> ${lectureWord(remainingP)}</span></div>`);
+      }
       advice = `<div class="advice-box">${lines.join('')}</div>`;
     }
 
@@ -657,7 +664,6 @@ function lectureWord(n){
       limitAll: ceilLimit(weeklyMeetings * SYSTEM_WEEKS)
     };
   }
-
   function updateCourseUI(courseId){
     const course = courses.find(c => c.id === courseId);
     if (!course) return;
