@@ -590,72 +590,55 @@ function lectureWord(n){
     if (doRender) renderCourses();
   }
 
-  function computeCourseState(course){
-    ensureMeetings(course);
-    const cleanMeetings = (course.meetings || []).slice(0, 3)
-      .filter(m => m && m.day && [1, 2, 3, 4].includes(Number(m.dur)))
-      .map(m => ({
-        day: m.day,
-        dur: Number(m.dur),
-        type: (m.type === 'عملي') ? 'عملي' : 'نظري',
-        absent: parseInt(m.absent, 10) || 0
-      }));
+  function computeCourseState(course) {
+    let totalTheory = 0, totalPrac = 0, absentTheory = 0, absentPrac = 0;
+    let hasTheory = false, hasPrac = false;
 
-    const weeklyByType = { 'نظري': 0, 'عملي': 0 };
-    cleanMeetings.forEach(m => weeklyByType[m.type]++);
+    course.meetings.forEach(m => {
+      let count = SYSTEM_WEEKS;
+      let abs = parseInt(m.absent) || 0;
+      if (m.type === 'نظري') { totalTheory += count; absentTheory += abs; hasTheory = true; }
+      else { totalPrac += count; absentPrac += abs; hasPrac = true; }
+    });
 
-    const totalByType = {
-      'نظري': weeklyByType['نظري'] * SYSTEM_WEEKS,
-      'عملي': weeklyByType['عملي'] * SYSTEM_WEEKS
-    };
+    // حساب الحرمان الفعلي (مثلاً 4)
+    let limitTheoryReal = ceilLimit(totalTheory);
+    let limitPracReal = ceilLimit(totalPrac);
 
-    const limitByType = {
-      'نظري': ceilLimit(totalByType['نظري']),
-      'عملي': ceilLimit(totalByType['عملي'])
-    };
+    // الرقم الذي سيظهر للطالب (مثلاً 3)
+    let displayLimitT = limitTheoryReal - 1;
+    let displayLimitP = limitPracReal - 1;
 
-    const absentByType = { 'نظري': 0, 'عملي': 0 };
-    cleanMeetings.forEach(m => { absentByType[m.type] += m.absent; });
+    let isDeprived = (hasTheory && absentTheory >= limitTheoryReal) || (hasPrac && absentPrac >= limitPracReal);
+    let maxPct = Math.max(hasTheory ? (absentTheory / totalTheory) * 100 : 0, hasPrac ? (absentPrac / totalPrac) * 100 : 0);
 
-    const pct = (abs, total) => total ? (abs / total) * 100 : 0;
-    const pctTheory = pct(absentByType['نظري'], totalByType['نظري']);
-    const pctPrac   = pct(absentByType['عملي'], totalByType['عملي']);
+    let status = { class: 'safe-bg', color: 'var(--safe)', msg: '🟢 وضعك آمن ومستقر' };
+    if (isDeprived) { status = { class: 'danger-bg', color: 'var(--danger)', msg: '🔴 حالة حرمان' }; }
+    else if (maxPct >= 15) { status = { class: 'warning-bg', color: 'var(--orange)', msg: '🟠 تنبيه: اقتربت من الحرمان' }; }
+    else if (maxPct >= 10) { status = { class: 'warning-bg', color: 'var(--warning)', msg: '🟡 انتباه: بدأ رصيدك بالنقصان' }; }
 
-    const hasTheory = totalByType['نظري'] > 0;
-    const hasPrac   = totalByType['عملي'] > 0;
-
-    let focusPctRaw = Math.max(pctTheory, pctPrac);
-    const percentShown = floor1(focusPctRaw);
-
-    const isDeprived = (hasTheory && absentByType['نظري'] >= limitByType['نظري']) || (hasPrac && absentByType['عملي'] >= limitByType['عملي']);
-    
-    let statusClass = 'safe-bg', statusColor = 'var(--safe)', msg = '🟢 وضعك آمن ومستقر';
-    if (isDeprived) { statusClass = 'danger-bg'; statusColor = 'var(--danger)'; msg = '🔴 حالة حرمان'; }
-    else if (percentShown >= 15) { statusClass = 'warning-bg'; statusColor = 'var(--orange)'; msg = '🟠 تنبيه: اقتربت من الحرمان'; }
-    else if (percentShown >= 10) { statusClass = 'warning-bg'; statusColor = 'var(--warning)'; msg = '🟡 انتباه: بدأ رصيدك بالنقصان'; }
-
-    let advice = '';
+    let advice = '<div class="advice-box">';
     if (isDeprived) {
-      advice = `<div class="advice-box" style="color:#dc2626; font-weight:900;">تجاوزتِ الحد المسموح.</div>`;
+      advice += `<b style="color:#dc2626; font-weight:900;">تجاوزتِ الحد المسموح.</b>`;
     } else {
-      let lines = [];
-      const buildLine = (type) => {
-        const remaining = (limitByType[type] - 1) - absentByType[type];
-        let remainColor = remaining <= 0 ? '#fb923c' : (remaining === 1 ? '#facc15' : '#16a34a');
-        return `<div style="margin-bottom:6px; line-height:1.8; font-weight:700;"><b style="color:var(--primary); font-weight:900;">ال${type}:</b> غيابك <span class="primary-num">${absentByType[type]}</span> من <span class="primary-num">${limitByType[type]}</span> — <span style="color:${remainColor}; font-weight:900;">يتبقى لك <span class="primary-num">${remaining}</span> ${lectureWord(remaining)}</span></div>`;
-      };
-      if (hasTheory) lines.push(buildLine('نظري'));
-      if (hasPrac) lines.push(buildLine('عملي'));
-      advice = `<div class="advice-box">${lines.join('')}</div>`;
+      if (hasTheory) {
+        let remT = displayLimitT - absentTheory;
+        advice += `<div style="margin-bottom:6px; line-height:1.8; font-weight:700;"><b style="color:var(--primary); font-weight:900;">النظري:</b> غيابك <span class="primary-num">${absentTheory}</span> من <span class="primary-num">${displayLimitT}</span> — <span style="color:#16a34a; font-weight:900;">يتبقى لك <span class="primary-num">${remT}</span> ${lectureWord(remT)}</span></div>`;
+      }
+      if (hasPrac) {
+        let remP = displayLimitP - absentPrac;
+        advice += `<div style="margin-top:5px; line-height:1.8; font-weight:700;"><b style="color:var(--primary); font-weight:900;">العملي:</b> غيابك <span class="primary-num">${absentPrac}</span> من <span class="primary-num">${displayLimitP}</span> — <span style="color:#16a34a; font-weight:900;">يتبقى لك <span class="primary-num">${remP}</span> ${lectureWord(remP)}</span></div>`;
+      }
     }
+    advice += '</div>';
 
-    const weeklyMeetings = cleanMeetings.length;
-    return {
-      weeklyMeetings, percentShown, statusClass, statusColor, msg, advice,
-      hasTheory, hasPrac, totalByType, limitByType, absentByType,
-      totalLecturesAll: weeklyMeetings * SYSTEM_WEEKS,
-      absentAll: absentByType['نظري'] + absentByType['عملي'],
-      limitAll: ceilLimit(weeklyMeetings * SYSTEM_WEEKS)
+    return { 
+      ...status, 
+      percentShown: floor1(maxPct), 
+      advice, 
+      limitAll: limitTheoryReal, 
+      absentAll: absentTheory + absentPrac,
+      totalLecturesAll: totalTheory + totalPrac 
     };
   }
 
