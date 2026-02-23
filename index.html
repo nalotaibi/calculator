@@ -476,6 +476,8 @@
 
 <script>
   let courses = JSON.parse(localStorage.getItem('myCourses')) || [];
+const selectedWeeks = 16; 
+
 const SYSTEM_WEEKS = 19;
 const DEPRIVATION_RATE = 0.20;
 const EPS = 1e-9;
@@ -491,6 +493,9 @@ function lectureWord(n){
 }
 
   function $(id){ return document.getElementById(id); }
+
+  const TERM_START = new Date(2026, 0, 18, 12, 0, 0); // 18-1-2026
+  const TERM_END   = new Date(2026, 4, 21, 12, 0, 0); // 21-5-2026
 
   function toggleModal(show) {
     const modal = $('guideModal');
@@ -634,7 +639,6 @@ function lectureWord(n){
     } else {
       let lines = [];
       const buildLine = (type) => {
-        // تم التعديل هنا ليكون المتبقي = (الحد - 1) - الغياب الحالي
         const remaining = (limitByType[type] - 1) - absentByType[type];
         let remainColor = remaining <= 0 ? '#fb923c' : (remaining === 1 ? '#facc15' : '#16a34a');
         return `<div style="margin-bottom:6px; line-height:1.8; font-weight:700;"><b style="color:var(--primary); font-weight:900;">ال${type}:</b> غيابك <span class="primary-num">${absentByType[type]}</span> من <span class="primary-num">${limitByType[type]}</span> — <span style="color:${remainColor}; font-weight:900;">يتبقى لك <span class="primary-num">${remaining}</span> ${lectureWord(remaining)}</span></div>`;
@@ -741,3 +745,4 @@ function lectureWord(n){
 </script>
 </body>
 </html>
+
