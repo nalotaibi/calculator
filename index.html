@@ -393,4 +393,351 @@
 <body>
 
   <div id="guideModal" class="info-overlay" onclick="toggleModal(false)">
-    <div class
+    <div class="info-modal" onclick="event.stopPropagation()">
+      <div class="info-modal-header">
+        <div class="info-modal-title">
+          <span class="info-badge">📱</span>
+          <span>إضافة الحاسبة للصفحة الرئيسية</span>
+        </div>
+        <button class="info-close" onclick="toggleModal(false)">✕</button>
+      </div>
+
+      <div class="info-modal-body" style="text-align:center;">
+        <div style="font-weight:900; color:var(--primary); margin-bottom:8px;">🍏 لمستخدمي iPhone (Safari)</div>
+        <div style="font-size:0.82rem; line-height:1.7;">
+          اضغط على أيقونة المشاركة ⬆️<br>
+          ثم اختر<br>
+          <b style="color:var(--info-modal-accent)">إضافة إلى الصفحة الرئيسية</b>
+        </div>
+
+        <hr style="border:none; border-top:1px solid rgba(15,23,42,0.10); margin:14px 0;">
+
+        <div style="font-weight:900; color:var(--primary); margin-bottom:8px;">🤖 لمستخدمي Android (Chrome)</div>
+        <div style="font-size:0.82rem; line-height:1.7;">
+          اضغط على النقاط الثلاث ⋮<br>
+          ثم اختر<br>
+          <b style="color:var(--info-modal-accent)">إضافة إلى الصفحة الرئيسية</b>
+        </div>
+      </div>
+
+      <div class="info-modal-footer">
+        <button class="info-ok" onclick="toggleModal(false)">فهمت</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="infoOverlay" class="info-overlay" onclick="closeInfoModal()">
+    <div class="info-modal" onclick="event.stopPropagation()">
+      <div class="info-modal-header">
+        <div class="info-modal-title">
+          <span class="info-badge" id="infoBadge">i</span>
+          <span id="infoTitle">معلومة</span>
+        </div>
+        <button class="info-close" onclick="closeInfoModal()">✕</button>
+      </div>
+
+      <div class="info-modal-body">
+        <div id="infoText"></div>
+        <div id="infoFormula" class="info-formula" style="display:none;"></div>
+      </div>
+
+      <div class="info-modal-footer">
+        <button class="info-ok" onclick="closeInfoModal()">فهمت</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-container">
+    <div class="install-banner">
+      <div class="install-text">استخدم الحاسبة كتطبيق على هاتفك الذكي</div>
+      <button class="install-btn" onclick="toggleModal(true)">طريقة الإضافة</button>
+    </div>
+
+    <header class="header-section">
+      <div class="header-text">
+        <h1>حاسبة الغياب الذكية</h1>
+      </div>
+    </header>
+
+    <div class="action-bars">
+      <button class="add-btn" onclick="addNewCourse()">➕ إضافة مقرر جديد</button>
+      <button class="reset-all" onclick="clearEverything()">إعادة ضبط</button>
+    </div>
+
+    <div id="coursesList"></div>
+
+    <footer class="footer-note">
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+        <p style="font-weight:bold; color:var(--primary); margin:0;">تصميم وتطوير: أ. نورة القثامي</p>
+        <p class="year">1447هـ | 2026م</p>
+      </div>
+    </footer>
+  </div>
+
+<script>
+  let courses = JSON.parse(localStorage.getItem('myCourses')) || [];
+const SYSTEM_WEEKS = 19;
+const DEPRIVATION_RATE = 0.20;
+const EPS = 1e-9;
+
+function ceilLimit(totalLectures){
+  return Math.ceil((totalLectures * DEPRIVATION_RATE) - EPS); 
+}
+function floor1(x){
+  return Math.floor((Number(x)||0) * 10) / 10; 
+}
+function lectureWord(n){
+  return (Math.abs(parseInt(n||0,10)) === 1) ? "لقاء" : "لقاءات";
+}
+
+  function $(id){ return document.getElementById(id); }
+
+  function toggleModal(show) {
+    const modal = $('guideModal');
+    if (!modal) return;
+    modal.style.display = show ? 'flex' : 'none';
+  }
+
+  function fixNumbers(str) {
+    return String(str || '')
+      .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 1632))
+      .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 1776))
+      .replace(/[^\d]/g, '');
+  }
+
+  function addNewCourse() {
+    courses.push({
+      id: Date.now(),
+      name: 'اسم المقرر',
+      meetings: [{ day: 'الأحد', dur: 2, type: 'نظري', absent: '' }]
+    });
+    renderCourses();
+  }
+
+  function openInfoModal({title='معلومة', text='', formula='', badge='i'}) {
+    const t = $('infoTitle'), tx = $('infoText'), b = $('infoBadge'), f = $('infoFormula'), ov = $('infoOverlay');
+    if (!t || !tx || !b || !f || !ov) return;
+    t.textContent = title;
+    tx.innerHTML = text;
+    b.textContent = badge;
+    f.style.display = formula ? 'block' : 'none';
+    f.textContent = formula || '';
+    ov.style.display = 'flex';
+  }
+
+  function closeInfoModal() {
+    const ov = $('infoOverlay');
+    if (ov) ov.style.display = 'none';
+  }
+
+  function openLimitInfo(courseId){
+    const course = courses.find(c => c.id === courseId);
+    if (!course) return;
+    const s = computeCourseState(course);
+    const totalAll = s.totalLecturesAll;
+    const limitAll = s.limitAll;
+
+    const theoryBlock = s.hasTheory ? `<div style="margin-top:8px; padding:10px 12px; border-radius:14px; background:#f8fafc; border:1px solid rgba(15,23,42,0.08);"><div style="font-weight:900; color:#0f172a; margin-bottom:6px;">النظري</div>• إجمالي اللقاءات: <b class="num">${s.totalByType['نظري']}</b> لقاء<br>• حد الحرمان (20%): <b class="num">${s.limitByType['نظري']}</b> غياب</div>` : '';
+    const pracBlock = s.hasPrac ? `<div style="margin-top:8px; padding:10px 12px; border-radius:14px; background:#f8fafc; border:1px solid rgba(15,23,42,0.08);"><div style="font-weight:900; color:#0f172a; margin-bottom:6px;">العملي</div>• إجمالي اللقاءات: <b class="num">${s.totalByType['عملي']}</b> لقاء<br>• حد الحرمان (20%): <b class="num">${s.limitByType['عملي']}</b> غياب</div>` : '';
+
+    const text = `<div style="font-weight:900; margin-bottom:6px; color:var(--primary);">حساب الحرمان كالتالي: :</div><div style="margin-top:8px; line-height:1.9;">• عدد اللقاءات الأسبوعية: <b class="num">${s.weeklyMeetings}</b><br>• إجمالي اللقاءات في الترم: <b class="num">${totalAll}</b> لقاء</div><div class="formula-line" style="margin-top:10px;">( <span class="num">${totalAll}</span> لقاء ) × <span class="num">20%</span> = <span class="num">${(totalAll * 0.20).toFixed(1).replace(/\.0+$/,'')}</span> لقاء</div><div style="margin-top:8px; font-weight:900; color:#0f172a;">🔴 يبدأ الحرمان عند <span class="num">${limitAll}</span> غياب</div>${(s.hasTheory || s.hasPrac) ? `<hr style="border:none; border-top:1px solid rgba(15,23,42,0.10); margin:12px 0;"><div style="font-weight:900; color:#334155; margin-bottom:6px;">تفصيل الشُعب:</div>${theoryBlock}${pracBlock}<div style="margin-top:10px; color:#ef4444; font-size:0.7rem; font-weight:500;">🔴 الحرمان في أحد الشقين النظري أو العملي يؤدي إلى الحرمان في المقرر كاملًا.</div>` : ''}`;
+    openInfoModal({ title: 'طريقة الحساب', text });
+  }
+
+  function ensureMeetings(course){
+    if (!Array.isArray(course.meetings)) course.meetings = [];
+    course.meetings = course.meetings.slice(0,3);
+    if (course.meetings.length === 0) course.meetings.push({ day:'الأحد', dur:2, type:'نظري', absent:'' });
+    course.meetings.forEach(m => {
+      if (!m.day) m.day = 'الأحد';
+      m.dur = [1, 2, 3, 4].includes(Number(m.dur)) ? Number(m.dur) : 2;    
+      if (!m.type) m.type = 'نظري';
+      if (m.absent === undefined) m.absent = '';
+    });
+  }
+
+  function addMeeting(courseId){
+    const i = courses.findIndex(c => c.id === courseId);
+    if (i !== -1 && courses[i].meetings.length < 3) {
+      courses[i].meetings.push({ day:'الاثنين', dur:1, type:'عملي', absent:'' });
+      renderCourses();
+    }
+  }
+
+  function removeMeeting(courseId){
+    const i = courses.findIndex(c => c.id === courseId);
+    if (i !== -1 && courses[i].meetings.length > 1) {
+      courses[i].meetings.pop();
+      renderCourses();
+    }
+  }
+
+  function updateMeeting(courseId, idx, field, value, doRender = true){
+    const i = courses.findIndex(c => c.id === courseId);
+    if (i === -1) return;
+    const m = courses[i].meetings[idx];
+    if (!m) return;
+    if (field === 'day') m.day = value;
+    if (field === 'dur') m.dur = Number(value); 
+    if (field === 'type') m.type = value;                     
+    if (field === 'absent') m.absent = fixNumbers(value);
+    if (doRender) renderCourses();
+  }
+
+  function computeCourseState(course){
+    ensureMeetings(course);
+    const cleanMeetings = (course.meetings || []).slice(0, 3)
+      .filter(m => m && m.day && [1, 2, 3, 4].includes(Number(m.dur)))
+      .map(m => ({
+        day: m.day,
+        dur: Number(m.dur),
+        type: (m.type === 'عملي') ? 'عملي' : 'نظري',
+        absent: parseInt(m.absent, 10) || 0
+      }));
+
+    const weeklyByType = { 'نظري': 0, 'عملي': 0 };
+    cleanMeetings.forEach(m => weeklyByType[m.type]++);
+
+    const totalByType = {
+      'نظري': weeklyByType['نظري'] * SYSTEM_WEEKS,
+      'عملي': weeklyByType['عملي'] * SYSTEM_WEEKS
+    };
+
+    const limitByType = {
+      'نظري': ceilLimit(totalByType['نظري']),
+      'عملي': ceilLimit(totalByType['عملي'])
+    };
+
+    const absentByType = { 'نظري': 0, 'عملي': 0 };
+    cleanMeetings.forEach(m => { absentByType[m.type] += m.absent; });
+
+    const pct = (abs, total) => total ? (abs / total) * 100 : 0;
+    const pctTheory = pct(absentByType['نظري'], totalByType['نظري']);
+    const pctPrac   = pct(absentByType['عملي'], totalByType['عملي']);
+
+    const hasTheory = totalByType['نظري'] > 0;
+    const hasPrac   = totalByType['عملي'] > 0;
+
+    let focusPctRaw = Math.max(pctTheory, pctPrac);
+    const percentShown = floor1(focusPctRaw);
+
+    const isDeprived = (hasTheory && absentByType['نظري'] >= limitByType['نظري']) || (hasPrac && absentByType['عملي'] >= limitByType['عملي']);
+    
+    let statusClass = 'safe-bg', statusColor = 'var(--safe)', msg = '🟢 وضعك آمن ومستقر';
+    if (isDeprived) { statusClass = 'danger-bg'; statusColor = 'var(--danger)'; msg = '🔴 حالة حرمان'; }
+    else if (percentShown >= 15) { statusClass = 'warning-bg'; statusColor = 'var(--orange)'; msg = '🟠 تنبيه: اقتربت من الحرمان'; }
+    else if (percentShown >= 10) { statusClass = 'warning-bg'; statusColor = 'var(--warning)'; msg = '🟡 انتباه: بدأ رصيدك بالنقصان'; }
+
+    let advice = '';
+    if (isDeprived) {
+      advice = `<div class="advice-box" style="color:#dc2626; font-weight:900;">تجاوزتِ الحد المسموح.</div>`;
+    } else {
+      let lines = [];
+      const buildLine = (type) => {
+        // تم التعديل هنا ليكون المتبقي = (الحد - 1) - الغياب الحالي
+        const remaining = (limitByType[type] - 1) - absentByType[type];
+        let remainColor = remaining <= 0 ? '#fb923c' : (remaining === 1 ? '#facc15' : '#16a34a');
+        return `<div style="margin-bottom:6px; line-height:1.8; font-weight:700;"><b style="color:var(--primary); font-weight:900;">ال${type}:</b> غيابك <span class="primary-num">${absentByType[type]}</span> من <span class="primary-num">${limitByType[type]}</span> — <span style="color:${remainColor}; font-weight:900;">يتبقى لك <span class="primary-num">${remaining}</span> ${lectureWord(remaining)}</span></div>`;
+      };
+      if (hasTheory) lines.push(buildLine('نظري'));
+      if (hasPrac) lines.push(buildLine('عملي'));
+      advice = `<div class="advice-box">${lines.join('')}</div>`;
+    }
+
+    const weeklyMeetings = cleanMeetings.length;
+    return {
+      weeklyMeetings, percentShown, statusClass, statusColor, msg, advice,
+      hasTheory, hasPrac, totalByType, limitByType, absentByType,
+      totalLecturesAll: weeklyMeetings * SYSTEM_WEEKS,
+      absentAll: absentByType['نظري'] + absentByType['عملي'],
+      limitAll: ceilLimit(weeklyMeetings * SYSTEM_WEEKS)
+    };
+  }
+
+  function updateCourseUI(courseId){
+    const course = courses.find(c => c.id === courseId);
+    if (!course) return;
+    const s = computeCourseState(course);
+    const box = document.getElementById(`resultBox-${courseId}`);
+    if (!box) return;
+    box.className = `result-area ${s.statusClass}`;
+    document.getElementById(`statusMsg-${courseId}`).textContent = s.msg;
+    document.getElementById(`statusMsg-${courseId}`).style.color = s.statusColor;
+    document.getElementById(`percentTxt-${courseId}`).textContent = `${s.percentShown.toFixed(1).replace(/\.0+$/,'')}%`;
+    document.getElementById(`barFill-${courseId}`).style.width = `${Math.min((s.percentShown / 20) * 100, 100)}%`;
+    document.getElementById(`barFill-${courseId}`).style.background = s.statusColor;
+    document.getElementById(`absentTxt-${courseId}`).textContent = `غيابك الحالي: ${s.absentAll} ${lectureWord(s.absentAll)}`;
+    document.getElementById(`limitTxt-${courseId}`).innerHTML = `حد الحرمان: ${s.limitAll} ${lectureWord(s.limitAll)} <span class="info-icon ${s.statusClass==='danger-bg'?'danger':(s.percentShown>=10?'warn':'')}" onclick="openLimitInfo(${courseId})">i</span>`;
+    document.getElementById(`adviceBox-${courseId}`).innerHTML = s.advice;
+    localStorage.setItem('myCourses', JSON.stringify(courses));
+  }
+
+  function renderCourses() {
+    const list = $('coursesList');
+    if (!list) return;
+    list.innerHTML = '';
+    courses.forEach(course => {
+      ensureMeetings(course);
+      const s = computeCourseState(course);
+      const card = document.createElement('div');
+      card.className = 'course-card';
+      card.innerHTML = `
+        <button class="delete-course" onclick="deleteCourse(${course.id})">✕</button>
+        <input type="text" class="course-title" value="${course.name}" onchange="updateCourse(${course.id}, 'name', this.value)">
+        <div class="input-group">
+          <label style="text-align:center;">لقاءات المقرر الأسبوعية</label>
+          <div id="meetWrap-${course.id}"></div>
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <button type="button" class="reset-all" style="flex:1;" onclick="addMeeting(${course.id})">➕ إضافة لقاء</button>
+            <button type="button" class="reset-all" style="flex:1;" onclick="removeMeeting(${course.id})">➖ حذف لقاء</button>
+          </div>
+        </div>
+        <div class="result-area ${s.statusClass}" id="resultBox-${course.id}">
+          <div id="statusMsg-${course.id}" style="font-size:0.95rem; font-weight:800; color:${s.statusColor}; margin-bottom:10px;">${s.msg}</div>
+          <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px;">
+            <span id="percentTxt-${course.id}" style="font-size:1.8rem; font-weight:900; color:var(--primary);">${s.percentShown.toFixed(1).replace(/\.0+$/,'')}%</span>
+            <span style="font-size:0.85rem; color:#718096; font-weight:bold;">من أصل 20%</span>
+          </div>
+          <div class="progress-bar"><div id="barFill-${course.id}" class="progress-fill" style="width:${Math.min((s.percentShown / 20) * 100, 100)}%; background:${s.statusColor}"></div></div>
+          <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#555; font-weight:700; margin-top:5px;">
+            <span id="absentTxt-${course.id}">غيابك الحالي: ${s.absentAll} ${lectureWord(s.absentAll)}</span>
+            <span id="limitTxt-${course.id}">حد الحرمان: ${s.limitAll} ${lectureWord(s.limitAll)} <span class="info-icon" onclick="openLimitInfo(${course.id})">i</span></span>
+          </div>
+          <div id="adviceBox-${course.id}">${s.advice}</div>
+        </div>
+      `;
+      list.appendChild(card);
+      const wrap = card.querySelector(`#meetWrap-${course.id}`);
+      wrap.innerHTML = (course.meetings || []).map((m, idx) => `
+        <div class="flex-inputs" style="margin-top:8px;">
+          <div><div class="input-sub-label">اليوم</div><select onchange="updateMeeting(${course.id}, ${idx}, 'day', this.value)">${['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس'].map(d => `<option value="${d}" ${m.day===d?'selected':''}>${d}</option>`).join('')}</select></div>
+          <div><div class="input-sub-label">النوع</div><select onchange="updateMeeting(${course.id}, ${idx}, 'type', this.value)"><option value="نظري" ${m.type==='نظري'?'selected':''}>نظري</option><option value="عملي" ${m.type==='عملي'?'selected':''}>عملي</option></select></div>
+          <div><div class="input-sub-label">المدة</div><select onchange="updateMeeting(${course.id}, ${idx}, 'dur', this.value)">
+            <option value="1" ${m.dur===1?'selected':''}>ساعة</option>
+            <option value="2" ${m.dur===2?'selected':''}>ساعتين</option>
+            <option value="3" ${m.dur===3?'selected':''}>3 ساعات</option>
+            <option value="4" ${m.dur===4?'selected':''}>4 ساعات</option>
+          </select></div>
+          <div><div class="input-sub-label">الغيابات</div><input type="text" inputmode="numeric" value="${m.absent||''}" oninput="this.value=fixNumbers(this.value); updateMeeting(${course.id}, ${idx}, 'absent', this.value, false); updateCourseUI(${course.id});"></div>
+        </div>`).join('');
+    });
+    localStorage.setItem('myCourses', JSON.stringify(courses));
+  }
+
+  function updateCourse(id, field, value) {
+    const idx = courses.findIndex(c => c.id === id);
+    if (idx !== -1) { courses[idx][field] = value; renderCourses(); }
+  }
+
+  function deleteCourse(id) {
+    if (confirm('حذف المقرر؟')) { courses = courses.filter(c => c.id !== id); renderCourses(); }
+  }
+
+  function clearEverything() {
+    if (confirm('إعادة ضبط كافة البيانات؟')) { courses = []; localStorage.removeItem('myCourses'); renderCourses(); }
+  }
+
+  window.onload = renderCourses;
+</script>
+</body>
+</html>
